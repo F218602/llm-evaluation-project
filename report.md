@@ -1,505 +1,534 @@
-## 1. Exploration
+# 1. Exploration
 
-### 1.1 Data Understanding
+## 1.1 Data Understanding
 
-To understand the dataset, I first created a script to merge `articles.jsonl` and `summaries.jsonl` using `article_id`. This allowed me to view each article alongside its five corresponding summaries.
+To understand the dataset, I first merged `articles.jsonl` and `summaries.jsonl` using `article_id`, enabling a unified view of each article alongside its five generated summaries.
 
-I sampled 3 articles and generated structured outputs containing:
-- Article title, text, and URL
-- Reference summary
-- All 5 generated summaries
+I then sampled three articles and constructed structured views containing:
 
-Since the dataset is in Japanese, I translated the articles and summaries into English to enable deeper qualitative analysis.
+* Article title, text, and URL
+* Reference summary
+* All five generated summaries
 
----
-
-### 1.2 Manual Inspection
-
-For each sampled article, I:
-
-- Read the full article (via BBC URL for full context)
-- Compared all 5 summaries side-by-side
-- Evaluated each summary manually based on:
-  - factual correctness
-  - completeness
-  - relevance
-  - clarity
-  - length
-
-This process helped identify how summaries differ in quality and where they fail.
+Since the dataset is in Japanese, I translated both articles and summaries into English to enable deeper qualitative analysis.
 
 ---
 
-### 1.3 Observed Failure Modes
+## 1.2 Manual Inspection
 
-Through manual comparison, several recurring failure patterns emerged:
+For each sampled article, I performed a detailed qualitative comparison:
 
-#### 1. Hallucination / Incorrect Information
+* Read the full article (using the source URL when necessary for context)
+* Compared all five summaries side-by-side
+* Evaluated each summary manually across:
+
+  * factual correctness
+  * completeness
+  * relevance
+  * clarity
+  * length
+
+This step was critical in understanding how summaries differ and where they fail.
+
+---
+
+## 1.3 Observed Failure Modes
+
+The following recurring failure patterns emerged:
+
+### 1. Hallucination / Incorrect Information
+
 Some summaries introduced facts not present in the article.
 
 **Example:**
-A summary incorrectly stated that the suspects escaped to another state, while the article confirmed they were killed.
+A summary claimed suspects escaped to another location, while the article confirmed they were killed.
 
 ---
 
-#### 2. Incomplete Summaries
-Some outputs were truncated or ended abruptly.
+### 2. Incomplete Summaries
+
+Some summaries were truncated or ended abruptly.
 
 **Example:**
-A summary ending mid-sentence after “the perpetrators fled…” without resolution.
+A summary ending mid-sentence after “The perpetrators fled the scene, but”.
 
 ---
 
-#### 3. Missing Key Information (Low Coverage)
-Some summaries captured only part of the story while missing critical elements such as:
-- outcome of the event
-- number of casualties
-- key entities or context
+### 3. Missing Key Information (Low Coverage)
+
+Some summaries omitted critical elements such as:
+
+* event outcomes
+* number of casualties
+* key entities
 
 ---
 
-#### 4. Poor Information Selection (Low Relevance)
-Some summaries focused on secondary details instead of the main event.
+### 4. Poor Information Selection (Low Relevance)
+
+Some summaries focused on secondary or less important details.
 
 **Example:**
-Describing tactical details (SUV movement, police positioning) while missing the core event and outcome.
+Describing tactical movements while missing the core event.
 
 ---
 
-#### 5. Overly Extractive / Verbose Summaries
-Some summaries copied large portions of the article without proper compression.
+### 5. Overly Extractive / Verbose Summaries
+
+Some outputs copied large portions of the article without meaningful compression.
 
 ---
 
-#### 6. Structural / Coherence Issues
+### 6. Structural / Coherence Issues
+
 Some summaries were:
-- disjointed
-- hard to follow
-- poorly structured
+
+* disjointed
+* difficult to follow
+* poorly structured
 
 ---
 
-### 1.4 Key Insight
+## 1.4 Key Insight
 
-A critical observation from this exploration was:
+A key observation from this analysis:
 
-> Summary quality is multi-dimensional, and different failure modes occur independently.
-
-For example:
-- A summary can be **factually correct but incomplete**
-- A summary can be **complete but include hallucinated details**
-- A summary can be **concise but irrelevant**
-
-This indicates that **no single metric (e.g., ROUGE) can capture overall quality**.
-
----
-
-### 1.5 Dimension Discovery
-
-Initially, ~10 potential evaluation dimensions were identified, including:
-
-- Faithfulness  
-- Coverage  
-- Relevance  
-- Coherence  
-- Conciseness  
-- Fluency  
-- Non-redundancy  
-- Completeness  
-- Consistency  
-- Style adherence  
-
-However, many of these overlapped or were subsets of broader concepts.
-
----
-
-### 1.6 Final Metric Selection
-
-The dimensions were consolidated into 5 core evaluation criteria:
-
-| Final Metric   | Captures |
-|----------------|--------|
-| Faithfulness   | hallucinations, factual errors |
-| Coverage       | missing key information |
-| Relevance      | importance of selected content |
-| Coherence      | structure and readability |
-| Conciseness    | length efficiency and compression |
-
-These five dimensions together cover all major observed failure modes.
-
----
-
-### 1.7 Reference Summary Analysis
-
-During exploration, I also observed that:
-
-> The provided reference summaries are not consistently high quality.
-
-Some were:
-- incomplete
-- overly compressed
-- missing important details
-
-Therefore:
-- Reference summaries were **not treated as ground truth**
-- They were used only as a **supporting signal (e.g., for ROUGE comparison)**
-
----
-
-### 1.8 Manual Scoring Validation
-
-To validate the identified dimensions, I manually scored summaries for one article:
-
-| Dimension    | S1 | S2 | S3 | S4 | S5 |
-|--------------|----|----|----|----|----|
-| Faithfulness | 5  | 5  | 5  | 5  | 2  |
-| Coverage     | 3  | 2  | 2  | 3  | 3  |
-| Relevance    | 5  | 4  | 4  | 5  | 3  |
-| Coherence    | 5  | 2  | 4  | 5  | 5  |
-| Conciseness  | 3  | 3  | 3  | 3  | 3  |
-
-This confirmed that:
-- The chosen dimensions effectively distinguish summary quality
-- Different summaries fail in different ways across dimensions
-
----
-
-### 1.9 Conclusion from Exploration
-
-The exploration phase established that:
-
-- Summary evaluation must be **multi-dimensional**
-- Metrics must be **independent**
-- LLM-based evaluation is necessary for:
-  - semantic understanding
-  - factual grounding
-- Heuristic metrics alone (e.g., ROUGE) are insufficient
-
-These findings directly informed the evaluation design described in the next section.
-
-## 2. Evaluation Design
-
-### 2.1 Design Objective
-
-The objective of the evaluation system is to assess the quality of generated news summaries in a way that:
-
-- Reflects real-world usefulness
-- Captures multiple independent quality dimensions
-- Produces interpretable and comparable scores
-- Aligns with human judgment
-
-From the exploration phase, it was clear that summary quality is inherently multi-dimensional, and no single metric is sufficient.
-
----
-
-### 2.2 Selected Evaluation Dimensions
-
-The evaluation is based on five key dimensions:
-
-| Metric        | Purpose |
-|--------------|--------|
-| Faithfulness | Detect factual correctness and hallucinations |
-| Coverage     | Measure completeness of key information |
-| Relevance    | Ensure focus on important content |
-| Coherence    | Evaluate clarity and structure |
-| Conciseness  | Measure efficiency of compression |
-
-These dimensions were selected because they collectively capture the major failure modes observed during exploration.
-
----
-
-### 2.3 Mapping Dimensions to Failure Modes
-
-Each metric corresponds to a specific failure pattern:
-
-- Faithfulness → penalizes hallucinated or incorrect information  
-- Coverage → penalizes missing critical details  
-- Relevance → penalizes focus on less important content  
-- Coherence → penalizes incomplete or poorly structured summaries  
-- Conciseness → penalizes overly long or overly short summaries  
-
-This mapping ensures that the evaluation remains interpretable and actionable.
-
----
-
-### 2.4 Metric Implementation Strategy
-
-The evaluation combines two approaches:
-
-#### LLM-based Evaluation
-
-The following dimensions are evaluated using a Large Language Model:
-
-- Faithfulness  
-- Coverage  
-- Relevance  
-- Coherence  
-
-These dimensions require semantic understanding and contextual reasoning, which cannot be reliably captured using rule-based or lexical metrics.
-
----
-
-#### Heuristic-based Evaluation
-
-Conciseness is evaluated using a length-based heuristic.
-
-The ratio between summary length and article length is used to determine how efficiently the content has been compressed.
-
----
-
-### 2.5 Conciseness Design
-
-Conciseness is defined as the ability to preserve key information while reducing length.
-
-The scoring is based on the ratio of summary length to article length:
-
-- A **balanced compression range** (approximately 3%–8% of the original length) is considered optimal and receives the highest score  
-- Slightly longer summaries receive moderately high scores  
-- Very long summaries are penalized for lack of compression  
-- Extremely short summaries are also penalized due to the risk of missing important information  
-
-This design ensures that conciseness reflects both brevity and information preservation.
-
----
-
-### 2.6 Prompt Design
-
-A structured prompt is used to guide the LLM evaluation.
-
-Key characteristics:
-
-- Clear scoring rubrics (1–5 scale) for each metric  
-- Explicit instruction to evaluate each metric independently  
-- Emphasis on consistency and strict evaluation  
-- Output restricted to structured JSON format  
-
-This ensures reliable and standardized scoring across summaries.
-
----
-
-### 2.7 Metric Independence
-
-A key design decision was to enforce strict separation between metrics:
-
-- Faithfulness evaluates only factual correctness  
-- Coverage evaluates only completeness  
-- Relevance evaluates importance of content  
-- Coherence evaluates readability and structure  
-
-Each metric is assessed independently to avoid overlap and bias.
-
----
-
-### 2.8 Final Scoring Strategy
-
-A weighted scoring approach is used to compute the overall quality score.
-
-The weights reflect the relative importance of each dimension:
-
-- Faithfulness and Coverage are given the highest importance  
-- Relevance and Coherence are moderately weighted  
-- Conciseness has the lowest weight but still contributes to the final score  
-
-This prioritization ensures that correctness and completeness are valued over stylistic aspects.
-
----
-
-### 2.9 Bottleneck Metric (Weakest Dimension)
-
-In addition to the overall score, the system identifies the weakest-performing dimension for each summary.
-
-This represents the primary limitation of the summary and provides a clear explanation of where it fails.
-
----
-
-### 2.10 Role of Reference Summary
-
-The reference summary is used only as a supplementary signal.
-
-It is not treated as ground truth because:
-
-- Its quality is inconsistent across the dataset  
-- Some references are incomplete or overly compressed  
-
-This prevents bias and ensures a more robust evaluation.
-
----
-
-### 2.11 Design Summary
-
-The evaluation system:
-
-- Uses LLMs for semantic evaluation  
-- Uses heuristics for structural evaluation  
-- Separates metrics to avoid bias  
-- Applies weighted scoring for overall quality  
-- Provides interpretable outputs through individual and bottleneck scores  
-
-This design allows the system to evaluate summaries in a way that closely reflects real-world quality expectations.
-
-## 3. Validation
-
-### 3.1 Human vs LLM Agreement
-
-To validate whether the evaluation reflects real quality, I manually scored summaries for a sample article across all dimensions.
-
-The LLM-generated scores were then compared against manual judgments.
-
-Result:
-- The LLM ranking closely matched the human ranking of summaries
-- High-quality summaries (S1, S4) consistently received higher scores
-- Poor summaries (incomplete or hallucinated) received lower scores
-
-This demonstrates that the evaluation aligns well with human intuition.
-
----
-
-### 3.2 Consistency Across Runs
-
-To test reliability, the evaluation was executed multiple times on the same dataset.
-
-Results from consecutive runs were compared using:
-- metric-wise score differences
-- visualization plots
-
-Observation:
-- Score variance across runs was minimal (typically < 0.3)
-- Relative ranking of summaries remained stable
-
-This indicates that the evaluation is consistent and reproducible.
-
----
-
-### 3.3 Metric Sensitivity to Failure Modes
-
-The evaluation was further validated by checking whether each metric correctly penalizes its intended failure mode.
+> Summary quality is inherently multi-dimensional, and failure modes occur independently.
 
 Examples:
 
-- Hallucinated summaries → low Faithfulness
-- Incomplete summaries → low Coherence and Coverage
-- Irrelevant summaries → low Relevance
-- Overly long summaries → lower Conciseness
+* A summary can be **factually correct but incomplete**
+* A summary can be **complete but hallucinated**
+* A summary can be **concise but irrelevant**
 
-This confirms that each metric behaves as expected and captures distinct quality aspects.
-
----
-
-### 3.4 Overall Validation Conclusion
-
-The evaluation system demonstrates:
-
-- Alignment with human judgment
-- Stability across multiple runs
-- Sensitivity to different failure modes
-
-Together, these provide confidence that the evaluation produces meaningful and reliable scores.
-
-## 4. Limitations
-
-While the proposed evaluation system captures multiple important aspects of summary quality, it has several limitations.
+This demonstrates that **single-metric evaluation (e.g., ROUGE) is insufficient**.
 
 ---
 
-### 4.1 Dependence on LLM Judgement
+## 1.5 Dimension Discovery
 
-The evaluation relies heavily on an LLM for scoring key dimensions such as faithfulness, coverage, relevance, and coherence.
+Initially, ~10 candidate dimensions were identified:
 
-As a result:
-- Scores may vary slightly across runs
-- The model may occasionally misinterpret context or nuance
-- There is no absolute guarantee of correctness
+* Faithfulness
+* Coverage
+* Relevance
+* Coherence
+* Conciseness
+* Fluency
+* Non-redundancy
+* Completeness
+* Consistency
+* Style adherence
 
-Although consistency checks show low variance, the evaluation is still probabilistic rather than deterministic.
-
----
-
-### 4.2 Limited Ground Truth for Validation
-
-The dataset does not provide a reliable ground truth for summary quality.
-
-- Reference summaries are inconsistent in quality
-- Some are incomplete or overly compressed
-
-As a result:
-- Validation relies on human judgment and qualitative comparison rather than objective benchmarks
+However, several of these overlapped or were subsets of broader concepts.
 
 ---
 
-### 4.3 Conciseness as a Length-Based Heuristic
+## 1.6 Final Metric Selection
 
-Conciseness is measured purely based on length ratio.
+The dimensions were consolidated into five core metrics:
 
-This introduces limitations:
-- A short summary may still omit important information
-- A longer summary may be justified if the article is complex
-- The metric does not directly evaluate redundancy or information density
+| Metric       | Captures                            |
+| ------------ | ----------------------------------- |
+| Faithfulness | factual correctness, hallucinations |
+| Coverage     | completeness of key information     |
+| Relevance    | importance of selected content      |
+| Coherence    | structure and readability           |
+| Conciseness  | compression efficiency              |
 
-Thus, conciseness is only an approximate measure of summarization quality.
-
----
-
-### 4.4 Limited Coverage of Linguistic Quality
-
-The evaluation does not explicitly measure:
-
-- Fluency (grammar and natural language quality)
-- Stylistic appropriateness
-- Tone or readability nuances
-
-While coherence partially captures readability, finer aspects of language quality are not directly evaluated.
+These metrics collectively cover all observed failure modes while remaining interpretable and minimally overlapping.
 
 ---
 
-### 4.5 Evaluation Scope Limited to Sample Size
+## 1.7 Reference Summary Analysis
 
-Due to API and time constraints:
+During exploration, I observed that reference summaries were not consistently high quality.
 
-- Full evaluation across all 250 summaries may be time-intensive
-- Some validation experiments were performed on a subset of the data
+Some were:
 
-Although the system generalizes conceptually, broader validation would strengthen confidence.
+* incomplete
+* overly compressed
+* missing key details
 
----
+Therefore:
 
-### 4.6 Potential Bias from Prompt Design
-
-The behavior of the evaluation is influenced by the prompt used for the LLM.
-
-- Slight changes in wording may affect scoring
-- The model may exhibit implicit biases in interpreting importance or relevance
-
-This introduces a dependency on prompt quality.
+* Reference summaries were **not treated as ground truth**
+* They were used only as a **supporting signal** (e.g., for ROUGE comparison)
 
 ---
 
-### 4.7 Lack of Fine-Grained Explanation
+## 1.8 Manual Scoring Sanity Check
 
-The system produces numerical scores but does not provide detailed explanations for each score.
+To validate the usefulness of the selected dimensions, I manually scored summaries for one article:
 
-- Difficult to fully understand *why* a summary received a specific score
-- Limits debugging and interpretability at a deeper level
+| Dimension    | S1 | S2 | S3 | S4 | S5 |
+| ------------ | -- | -- | -- | -- | -- |
+| Faithfulness | 5  | 5  | 5  | 5  | 2  |
+| Coverage     | 4  | 2  | 2  | 4  | 3  |
+| Relevance    | 5  | 4  | 4  | 5  | 3  |
+| Coherence    | 5  | 2  | 4  | 5  | 5  |
+| Conciseness  | 5  | 4  | 3  | 5  | 5  |
 
----
+This confirmed:
 
-### 4.8 Future Improvements
-
-If more time were available, the following improvements could be explored:
-
-- Add explanation generation for each score
-- Incorporate fluency and style metrics
-- Use multiple LLM calls and average scores to improve stability
-- Introduce pairwise ranking evaluation (comparing summaries directly)
-- Expand validation with more human-labeled samples
+* Metrics distinguish summaries effectively
+* Different summaries fail along different dimensions
 
 ---
 
-### 4.9 Summary of Limitations
+## 1.9 Conclusion from Exploration
 
-The evaluation system is effective at capturing core summary quality dimensions, but:
+The exploration phase established that:
 
-- It depends on LLM judgment
-- It uses heuristic approximations for some metrics
-- It lacks full ground-truth validation
+* Evaluation must be **multi-dimensional**
+* Metrics should be **independent**
+* **LLM-based evaluation is necessary** for semantic understanding
+* Heuristic metrics alone are insufficient
 
-Despite these limitations, it provides a strong and practical framework for evaluating summary quality in a multi-dimensional manner.
+These insights directly informed the evaluation design.
+
+---
+
+# 2. Evaluation Design
+
+## 2.1 Objective
+
+The evaluation aims to:
+
+* Reflect real-world summary quality
+* Capture multiple independent dimensions
+* Produce interpretable and comparable scores
+* Align with human judgment
+
+---
+
+## 2.2 Evaluation Dimensions
+
+The system evaluates summaries across five dimensions:
+
+| Metric       | Purpose                                  |
+| ------------ | ---------------------------------------- |
+| Faithfulness | Detect hallucinations and factual errors |
+| Coverage     | Measure completeness                     |
+| Relevance    | Assess importance of content             |
+| Coherence    | Evaluate structure and readability       |
+| Conciseness  | Measure compression efficiency           |
+
+---
+
+## 2.3 Mapping Metrics to Failure Modes
+
+Each metric directly targets observed failure modes:
+
+* Faithfulness → hallucinations
+* Coverage → missing information
+* Relevance → poor content selection
+* Coherence → structural issues
+* Conciseness → verbosity or over-compression
+
+This ensures interpretability and diagnostic value.
+
+---
+
+## 2.4 Metric Implementation
+
+### LLM-based Evaluation
+
+Used for:
+
+* Faithfulness
+* Coverage
+* Relevance
+* Coherence
+
+These require semantic understanding and contextual reasoning.
+
+---
+
+### Heuristic-based Evaluation
+
+Used for:
+
+* Conciseness
+
+Based on summary-to-article length ratio.
+
+---
+
+## 2.5 Conciseness Design
+
+Conciseness is evaluated using compression ratio:
+
+* Optimal range (~3–8%) → highest score
+* Slight deviations → moderate score
+* Very long summaries → penalized
+* Extremely short summaries → penalized
+
+This balances brevity with information retention.
+
+---
+
+## 2.6 Prompt Design
+
+A structured prompt ensures consistent LLM evaluation:
+
+* Clear scoring rubric (1–5 scale)
+* Independent evaluation per metric
+* Strict evaluation instructions
+* JSON-only output
+
+This reduces variability and enforces standardization.
+
+---
+
+## 2.7 Metric Independence
+
+Each metric is evaluated independently:
+
+* Faithfulness → correctness only
+* Coverage → completeness only
+* Relevance → importance only
+* Coherence → structure only
+
+This prevents overlap and bias.
+
+---
+
+## 2.8 Scoring Strategy
+
+A weighted score combines all metrics:
+
+* Higher weight: Faithfulness, Coverage
+* Medium weight: Relevance, Coherence
+* Lower weight: Conciseness
+
+This prioritizes correctness over style.
+
+
+## 2.8.1 Scoring Implementation Details
+
+The final score is computed as a weighted combination of all metrics:
+
+* Faithfulness: 0.3
+* Coverage: 0.3
+* Relevance: 0.15
+* Coherence: 0.15
+* Conciseness: 0.1
+
+This reflects the prioritization of factual correctness and completeness over stylistic aspects.
+
+---
+
+### Conciseness Calculation
+
+Conciseness is calculated using the ratio of summary length to article length:
+
+* 2% – 6% → Score 5 (optimal ultra-concise summaries)
+* 6% – 10% → Score 4
+* 10% – 20% → Score 3
+* < 2% → Score 4 (very short but potentially high-density)
+* > 20% → Score 2 (overly verbose)
+
+This rewards dense summaries while penalizing excessive length.
+
+---
+
+### ROUGE as Supporting Signal
+
+* ROUGE-L (F1 score) is computed between generated and reference summaries
+* Used only as a diagnostic signal
+* Not included in final scoring due to inconsistent reference quality
+
+## 2.9 Bottleneck Metric
+
+For each summary, the weakest dimension is identified.
+
+Defined as the lowest-scoring metric (unweighted)
+Represents the primary weakness of the summary
+
+This:
+
+Explains failures clearly
+Improves interpretability
+Helps debugging
+
+---
+
+## 2.10 Role of Reference Summary
+
+Reference summaries are used only as a **secondary signal**, not ground truth, due to inconsistent quality.
+
+---
+
+## 2.11 Design Summary
+
+The evaluation system:
+
+* Combines LLM and heuristic methods
+* Uses independent metrics
+* Produces weighted scores
+* Provides interpretable outputs
+
+---
+
+# 3. Validation
+
+## 3.1 Human vs LLM Agreement
+
+A subset of summaries was manually scored and compared with LLM outputs.
+
+**Observation:**
+
+* Strong alignment in ranking
+* High-quality summaries scored consistently higher
+* Poor summaries scored lower
+
+**Conclusion:**
+The evaluation aligns with human judgment and is meaningful.
+
+---
+
+## 3.2 Consistency Across Runs
+
+The evaluation was run across multiple iterations.
+
+**Findings:**
+
+* Score differences were minimal (typically < 0.3)
+* Correlation across runs was high
+* Rankings remained stable
+
+**Conclusion:**
+The evaluation is reliable and reproducible.
+
+---
+
+## 3.3 Sensitivity to Failure Modes
+
+Each metric responds appropriately to specific issues:
+
+* Hallucination → low Faithfulness
+* Missing info → low Coverage
+* Irrelevance → low Relevance
+* Poor structure → low Coherence
+* Verbosity → low Conciseness
+
+**Conclusion:**
+Metrics are non-redundant and capture distinct dimensions.
+
+---
+
+## 3.4 Overall Validation Conclusion
+
+The evaluation demonstrates:
+
+* Alignment with human judgment
+* Stability across runs
+* Sensitivity to failure modes
+
+This provides confidence in its reliability and usefulness.
+
+---
+
+# 4. Limitations
+
+## 4.1 Dependence on LLM Judgment
+
+* Non-deterministic outputs
+* Potential misinterpretation
+* Probabilistic scoring
+
+---
+
+## 4.2 Lack of Ground Truth
+
+* Reference summaries are unreliable
+* Validation relies on qualitative judgment
+
+---
+
+## 4.3 Conciseness Approximation
+
+* Based only on length
+* Does not measure information density
+
+---
+
+## 4.4 Coverage Metric Calibration Bias
+
+The coverage metric is inherently difficult to calibrate due to the absence of a clearly defined ground truth for what constitutes a “complete” summary.
+
+The current approach approximates completeness by prompting the LLM to internally identify 5–10 key facts from the article and measure their presence in the summary. While structured, this introduces a systematic bias:
+
+* The LLM may identify more key facts than what is realistically expected in a high-quality summary
+* Concise summaries that correctly capture the main event may still be penalized for omitting secondary details
+* Coverage scores therefore tend to be **systematically lower across the dataset**
+
+This reveals a mismatch between:
+
+* **Article-level completeness** (broad fact coverage)
+  vs
+* **Summarization intent** (high-impact compression)
+
+**Implication:**
+The metric may under-score otherwise strong summaries, particularly those optimized for brevity and relevance.
+
+**Potential Improvements:**
+
+* Calibrate the prompt using high-quality reference summaries
+* Learn coverage expectations via supervised or preference-based methods
+* Adjust scoring thresholds to better reflect realistic summarization standards
+
+---
+
+## 4.5 Limited Linguistic Evaluation
+
+Does not explicitly measure:
+
+* fluency
+* tone
+* stylistic quality
+
+---
+
+## 4.6 Limited Validation Scope
+
+* Some validation performed on subsets
+* Full-scale validation could strengthen results
+
+---
+
+## 4.7 Prompt Sensitivity
+
+* Evaluation depends on prompt design
+* Small changes may affect scores
+
+---
+
+## 4.8 Limited Explainability
+
+* Produces scores but not detailed reasoning
+* Harder to debug individual cases
+
+---
+
+## 4.9 Future Improvements
+
+* Add explanation generation
+* Include fluency/style metrics
+* Use multiple LLM runs with averaging
+* Introduce pairwise ranking evaluation
+* Expand human-labeled validation
+
+---
+
+## 4.10 Summary of Limitations
+
+The system is effective but:
+
+* Relies on LLM judgment
+* Uses heuristic approximations
+* Lacks full ground-truth validation
+
+Despite these limitations, it provides a strong and practical multi-dimensional evaluation framework.
+

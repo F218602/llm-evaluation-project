@@ -163,8 +163,8 @@ SUMMARY:
 # -----------------------------
 
 def map_length_to_conciseness(summary_text, article_text):
-    summary_len = len(summary_text.split())
-    article_len = len(article_text.split())
+    summary_len = len(summary_text)
+    article_len = len(article_text)
 
     if article_len == 0:
         return 3  # safe fallback

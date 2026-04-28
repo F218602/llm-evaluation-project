@@ -27,7 +27,7 @@ print("Merged shape:", df.shape)
 # 3. SAMPLE OUTPUT
 # -----------------------------
 
-first_ids = df["article_id"].unique()[:3]
+first_ids = df["article_id"].unique()[:5]
 
 with open(output_txt_path, "w", encoding="utf-8") as f:
 

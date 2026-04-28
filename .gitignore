@@ -1,5 +1,4 @@
 eval_env/
 .env
+.env.example
 __pycache__/
-outputs/*.jsonl
-outputs/*.txt
