@@ -251,7 +251,7 @@ Used for:
 
 * Conciseness
 
-Based on summary-to-article length ratio.
+Based on summary-to-article length ratio computed using character-level length for Japanese text.
 
 ---
 
@@ -304,7 +304,6 @@ A weighted score combines all metrics:
 
 This prioritizes correctness over style.
 
-
 ## 2.8.1 Scoring Implementation Details
 
 The final score is computed as a weighted combination of all metrics:
@@ -321,7 +320,7 @@ This reflects the prioritization of factual correctness and completeness over st
 
 ### Conciseness Calculation
 
-Conciseness is calculated using the ratio of summary length to article length:
+Conciseness is calculated using the ratio of summary length to article length using character-level length:
 
 * 2% – 6% → Score 5 (optimal ultra-concise summaries)
 * 6% – 10% → Score 4
@@ -449,7 +448,7 @@ This provides confidence in its reliability and usefulness.
 
 ## 4.3 Conciseness Approximation
 
-* Based only on length
+* Based only on length (character-level for Japanese text)
 * Does not measure information density
 
 ---
@@ -531,4 +530,3 @@ The system is effective but:
 * Lacks full ground-truth validation
 
 Despite these limitations, it provides a strong and practical multi-dimensional evaluation framework.
-
